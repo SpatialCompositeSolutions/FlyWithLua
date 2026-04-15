@@ -110,6 +110,10 @@ If you want to grab a most current binary, just download `FlyWithLua_plugin.zip`
    mkdir ./FlyWithLua/mac_x64
    cp ./build/mac.xpl ./FlyWithLua/mac_x64/FlyWithLua.xpl
    ```
+   
+### Forked Changes Summary
+
+- Implement and exposes `load_image` and `draw_image` function
 
 ### Additional tips
 
