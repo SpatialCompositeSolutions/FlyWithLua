@@ -1380,7 +1380,8 @@ int FWLDrawWindowCallback(XPLMDrawingPhase /*inPhase*/,
         lua_getglobal(FWLLua, "DO_EVERY_DRAW_CHUNK");
         if (lua_pcall(FWLLua, 0, LUA_MULTRET, 0))
         {
-            logMsg(logToDevCon, "FlyWithLua Error: Can't execute window draw callback chunk.");
+            const char* error_msg = lua_tostring(FWLLua, -1);
+            logMsg(logToDevCon, std::string("FlyWithLua Error: Can't execute window draw callback chunk: ") + (error_msg ? error_msg : "unknown error"));
             LuaIsRunning = false;
         }
     }
@@ -2352,6 +2353,77 @@ static int LuaDrawString(lua_State* L)
 
     strncpy(string_to_print, lua_tostring(L, 3), sizeof(string_to_print));
     XPLMDrawString(ColorWanted, x_pos, y_pos, string_to_print, nullptr, xplmFont_Proportional);
+    return 0;
+}
+
+static int LuaLoadImage(lua_State* L)
+{
+    if (!lua_isstring(L, 1))
+    {
+        logMsg(logToDevCon, "FlyWithLua Error: wrong arguments given to load_image().");
+        LuaIsRunning = false;
+        return 0;
+    }
+
+    std::string file_name = lua_tostring(L, 1);
+
+    try
+    {
+        int id = flwnd::loadImage(file_name);
+        lua_pushnumber(L, id);
+        return 1;
+    } catch (const std::exception& e)
+    {
+        logMsg(logToDevCon,
+               std::string("FlyWithLua Error: Couldn't load image in load_image(): ").append(e.what()));
+        LuaIsRunning = false;
+        return 0;
+    }
+}
+
+static int LuaDrawImage(lua_State* L)
+{
+    if (WeAreNotInDrawingState)
+    {
+        logMsg(logToDevCon,
+               "FlyWithLua Error: draw_image() cannot be executed outside a drawing loopback. Put the function call inside the do_every_draw() string argument to solve this issue.");
+        LuaIsRunning = false;
+        return 0;
+    }
+
+    // arguments: int image_id, float x_pos, float y_pos, float width, float height
+    if (!(lua_isnumber(L, 1) && lua_isnumber(L, 2) && lua_isnumber(L, 3) && lua_isnumber(L, 4) && lua_isnumber(L, 5)))
+    {
+        logMsg(logToDevCon, "FlyWithLua Error: wrong arguments given to draw_image().");
+        LuaIsRunning = false;
+        return 0;
+    }
+
+    auto image_id = static_cast<int>(lua_tointeger(L, 1));
+    auto x_pos = static_cast<float>(lua_tonumber(L, 2));
+    auto y_pos = static_cast<float>(lua_tonumber(L, 3));
+    auto width = static_cast<float>(lua_tonumber(L, 4));
+    auto height = static_cast<float>(lua_tonumber(L, 5));
+
+    // Use a predictable 2D textured rendering state.
+    XPLMSetGraphicsState(0, 1, 0, 1, 1, 0, 0);
+    glDisable(GL_CULL_FACE);
+    glDisable(GL_LIGHTING);
+    glEnable(GL_TEXTURE_2D);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    XPLMBindTexture2d(image_id, 0);
+
+    glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
+    glBegin(GL_QUADS);
+    glTexCoord2f(0.0f, 1.0f);
+    glVertex2f(x_pos, y_pos);
+    glTexCoord2f(1.0f, 1.0f);
+    glVertex2f(x_pos + width, y_pos);
+    glTexCoord2f(1.0f, 0.0f);
+    glVertex2f(x_pos + width, y_pos + height);
+    glTexCoord2f(0.0f, 0.0f);
+    glVertex2f(x_pos, y_pos + height);
+    glEnd();
     return 0;
 }
 
@@ -6191,6 +6263,8 @@ void RegisterCoreCFunctionsToLua(lua_State* L)
     lua_register(L, "command_begin", LuaCommandBegin);
     lua_register(L, "command_end", LuaCommandEnd);
     lua_register(L, "crash_the_sim", LuaCrashTheSim);
+    lua_register(L, "load_image", LuaLoadImage);
+    lua_register(L, "draw_image", LuaDrawImage);
     lua_register(L, "draw_string", LuaDrawString);
     lua_register(L, "draw_string_Helvetica_18", LuaDrawStringHelv18);
     lua_register(L, "draw_string_Helvetica_12", LuaDrawStringHelv12);

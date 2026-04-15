@@ -7,6 +7,7 @@
 #ifndef FLOATINGWINDOWS_FLWINTEGRATION_H_
 #define FLOATINGWINDOWS_FLWINTEGRATION_H_
 
+#include <string>
 #include "lua.hpp"
 
 // globals for imgui lua bindings
@@ -15,6 +16,7 @@ void LoadImguiBindings();
 
 namespace flwnd {
 
+int loadImage(const std::string& fileName);
 void initFloatingWindowSupport();
 void deinitFloatingWindowSupport();
 void onFlightLoop();
